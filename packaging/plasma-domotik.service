@@ -1,0 +1,13 @@
+[Unit]
+Description=Plasma Domotik User Service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 -m backend.service.runner
+Restart=on-failure
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=plasma-domotik
+
+[Install]
+WantedBy=default.target
