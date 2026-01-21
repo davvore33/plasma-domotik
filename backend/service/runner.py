@@ -1,5 +1,6 @@
 import logging
 import time
+from backend.logging import setup_logging
 from backend.service.mock_bridge import MockBridge
 from backend.service.dbus_service import BaseService, DBusServiceWrapper, _HAS_PYDBUS
 
@@ -7,7 +8,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def main():
-    logging.basicConfig(level=logging.INFO)
+    setup_logging()
     bridge = MockBridge()
     # add a sample device
     bridge.add_device({
@@ -25,7 +26,7 @@ def main():
         wrapper = DBusServiceWrapper(base)
         wrapper.start()
     else:
-        _LOGGER.info("pydbus not available — running in-process loop")
+        _LOGGER.info("pydbus not available — running in-process loop", extra={"extra": {}})
         base.Refresh()
         # simple loop to keep process alive
         try:
