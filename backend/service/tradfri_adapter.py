@@ -1,5 +1,8 @@
 from typing import Any, Dict, Iterable, Optional, List
 import logging
+import socket
+import time
+from urllib.parse import urlparse
 
 from backend.service.zigbee_bridge import ZigbeeBridge
 
@@ -32,6 +35,76 @@ class TradfriAdapter(ZigbeeBridge):
         self.identity = identity
         self.psk = psk
         self._api = None
+
+    @staticmethod
+    def discover_gateways(timeout: float = 2.0) -> List[str]:
+        """Discover TRADFRI gateway IPs on the local network using SSDP/UPnP.
+
+        This method sends an M-SEARCH multicast and collects unique hosts
+        from response `LOCATION` headers. It is purposely lightweight and
+        does not depend on pytradfri; if pytradfri-specific helpers are
+        available they could be used instead in future.
+
+        Returns:
+            A list of discovered gateway hostnames or IP addresses.
+        """
+        msearch = (
+            'M-SEARCH * HTTP/1.1\r\n'
+            'HOST: 239.255.255.250:1900\r\n'
+            'MAN: "ssdp:discover"\r\n'
+            'MX: 1\r\n'
+            'ST: ssdp:all\r\n'
+            '\r\n'
+        )
+
+        addrs: List[str] = []
+        # UDP socket for SSDP
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+        try:
+            sock.settimeout(timeout)
+            # Allow reuse/port binding on some platforms
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            # Send the multicast M-SEARCH
+            sock.sendto(msearch.encode('utf-8'), ('239.255.255.250', 1900))
+
+            start = time.time()
+            seen = set()
+            while True:
+                # stop after timeout seconds
+                remaining = timeout - (time.time() - start)
+                if remaining <= 0:
+                    break
+                try:
+                    data, addr = sock.recvfrom(1024)
+                except socket.timeout:
+                    break
+                try:
+                    text = data.decode('utf-8', errors='ignore')
+                except Exception:
+                    continue
+                # Parse LOCATION header if present
+                for line in text.split('\r\n'):
+                    if line.lower().startswith('location:'):
+                        loc = line.split(':', 1)[1].strip()
+                        try:
+                            p = urlparse(loc)
+                            host = p.hostname or addr[0]
+                        except Exception:
+                            host = addr[0]
+                        if host not in seen:
+                            seen.add(host)
+                            addrs.append(host)
+                        break
+                else:
+                    # if no LOCATION header, use sender address as fallback
+                    host = addr[0]
+                    if host not in seen:
+                        seen.add(host)
+                        addrs.append(host)
+        finally:
+            sock.close()
+
+        return addrs
 
     def connect(self, timeout: int = 5) -> bool:
         """Create an APIFactory and test connectivity by listing devices.
