@@ -1,3 +1,5 @@
 """Domain models for the service."""
 
-__all__ = []
+from .device import Device
+
+__all__ = ["Device"]
