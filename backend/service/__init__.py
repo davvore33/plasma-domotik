@@ -1,3 +1,5 @@
 """Service layer for the application."""
 
-__all__ = []
+from .zigbee_bridge import ZigbeeBridge
+
+__all__ = ["ZigbeeBridge"]
