@@ -79,6 +79,16 @@ PlasmoidItem {
         });
     }
 
+    Timer {
+        id: refreshTimer
+        interval: 5000
+        repeat: true
+        running: plasmoid.expanded
+        onTriggered: {
+            refreshDevices();
+        }
+    }
+
     Component.onCompleted: {
         plasmoid.busy = loading;
         refreshDevices();

@@ -13,6 +13,9 @@ let devicesCache = new Map();
 let observeActive = false;
 let initialDiscoveryDone = false;
 let initialDiscoveryResolve = null;
+let lastError = null;
+let reconnectTimer = null;
+let lastConfig = null;
 
 function loadConfig() {
     try {
@@ -72,22 +75,43 @@ function mapDevice(device) {
 async function ensureConnected(overrideHost = null, overrideIdentity = null, overridePsk = null) {
     if (connected && tradfri) return true;
     
+    // Cancel any pending reconnect
+    if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+    }
+    
     let config = null;
     if (overrideHost && overrideIdentity && overridePsk) {
         config = { host: overrideHost, identity: overrideIdentity, psk: overridePsk };
+        lastConfig = config;
+    } else if (lastConfig) {
+        config = lastConfig;
     } else {
         config = loadConfig();
+        if (config) lastConfig = config;
     }
     if (!config) return false;
     
     tradfri = new TradfriClient(config.host);
     tradfri.on('error', (err) => {
         console.error('Tradfri error:', err.message);
+        lastError = err.message;
+        connected = false;
+        // Attempt reconnect after 5s
+        if (!reconnectTimer) {
+            console.log('Scheduling reconnect in 5s...');
+            reconnectTimer = setTimeout(() => {
+                reconnectTimer = null;
+                ensureConnected();
+            }, 5000);
+        }
     });
     
     tradfri.on('device updated', (device) => {
         console.log('Device updated:', device.name, device.instanceId);
         devicesCache.set(String(device.instanceId), device);
+        lastError = null;
     });
     
     tradfri.on('device removed', (deviceId) => {
@@ -101,10 +125,12 @@ async function ensureConnected(overrideHost = null, overrideIdentity = null, ove
             observeActive = true;
             tradfri.observeDevices();
             console.log('Device observation started');
+            lastError = null;
         }
         return connected;
     } catch (e) {
         console.error('Connection failed:', e.message);
+        lastError = e.message;
         connected = false;
         return false;
     }
@@ -141,13 +167,24 @@ async function connectWithSecurityCode(host, securityCode) {
         
         // Reconnect with the new credentials
         await tradfri.destroy();
+        lastConfig = { host, identity, psk };
         tradfri = new TradfriClient(host);
         tradfri.on('error', (err) => {
             console.error('Tradfri error:', err.message);
+            lastError = err.message;
+            connected = false;
+            if (!reconnectTimer) {
+                console.log('Scheduling reconnect in 5s...');
+                reconnectTimer = setTimeout(() => {
+                    reconnectTimer = null;
+                    ensureConnected();
+                }, 5000);
+            }
         });
         tradfri.on('device updated', (device) => {
             console.log('Device updated:', device.name, device.instanceId);
             devicesCache.set(String(device.instanceId), device);
+            lastError = null;
         });
         tradfri.on('device removed', (deviceId) => {
             console.log('Device removed:', deviceId);
@@ -165,6 +202,7 @@ async function connectWithSecurityCode(host, securityCode) {
         observeActive = true;
         tradfri.observeDevices();
         console.log('Device observation started');
+        lastError = null;
         
         return { connected: true, identity, psk };
     } catch (e) {
@@ -349,16 +387,33 @@ const server = http.createServer(async (req, res) => {
             }
             
             case '/disconnect': {
+                if (reconnectTimer) {
+                    clearTimeout(reconnectTimer);
+                    reconnectTimer = null;
+                }
                 if (tradfri) {
                     observeActive = false;
                     initialDiscoveryDone = false;
                     await tradfri.destroy();
                     tradfri = null;
-                    connected = false;
-                    devicesCache.clear();
                 }
+                connected = false;
+                devicesCache.clear();
+                lastConfig = null;
+                lastError = null;
                 res.writeHead(200);
                 res.end(JSON.stringify({ disconnected: true }));
+                break;
+            }
+            
+            case '/status': {
+                res.writeHead(200);
+                res.end(JSON.stringify({
+                    connected,
+                    deviceCount: devicesCache.size,
+                    lastError,
+                    host: lastConfig ? lastConfig.host : null
+                }));
                 break;
             }
             
@@ -379,6 +434,14 @@ server.listen(PORT, '127.0.0.1', () => {
 });
 
 process.on('SIGINT', async () => {
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    if (tradfri) await tradfri.destroy();
+    server.close();
+    process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+    if (reconnectTimer) clearTimeout(reconnectTimer);
     if (tradfri) await tradfri.destroy();
     server.close();
     process.exit(0);

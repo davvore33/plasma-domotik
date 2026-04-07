@@ -1,0 +1,22 @@
+[Unit]
+Description=Plasma Domotik TRÅDFRI Node Adapter
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/node %h/.local/share/plasma-domotik/backend/service/tradfri_node_adapter.mjs
+WorkingDirectory=%h/.local/share/plasma-domotik
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=plasma-domotik-adapter
+
+# Security hardening
+NoNewPrivileges=true
+ProtectHome=read-only
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target
