@@ -1,0 +1,19 @@
+{
+    "KPlugin": {
+        "Id": "io.github.davvore33.PlasmaDomotik",
+        "Name": "Plasma Domotik",
+        "Description": "Control your Zigbee devices via TRÅDFRI gateway",
+        "Icon": "lightbulb",
+        "Category": "Application Launchers",
+        "Version": "1.0",
+        "Authors": [
+            {
+                "Name": "davvore33"
+            }
+        ],
+        "License": "MIT",
+        "Website": "https://github.com/davvore33/plasma-domotik"
+    },
+    "KPackageStructure": "Plasma/Applet",
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

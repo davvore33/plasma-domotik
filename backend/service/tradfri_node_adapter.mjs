@@ -2,6 +2,7 @@ import { TradfriClient } from 'node-tradfri-client';
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 
 const CONFIG_FILE = path.join(process.env.HOME, '.config/plasma-domotik/tradfri_psk.json');
 const PORT = 8765;
@@ -68,10 +69,15 @@ function mapDevice(device) {
     };
 }
 
-async function ensureConnected() {
+async function ensureConnected(overrideHost = null, overrideIdentity = null, overridePsk = null) {
     if (connected && tradfri) return true;
     
-    const config = loadConfig();
+    let config = null;
+    if (overrideHost && overrideIdentity && overridePsk) {
+        config = { host: overrideHost, identity: overrideIdentity, psk: overridePsk };
+    } else {
+        config = loadConfig();
+    }
     if (!config) return false;
     
     tradfri = new TradfriClient(config.host);
@@ -104,14 +110,87 @@ async function ensureConnected() {
     }
 }
 
+async function connectWithSecurityCode(host, securityCode) {
+    if (connected && tradfri) return { connected: true };
+    
+    try {
+        tradfri = new TradfriClient(host);
+        tradfri.on('error', (err) => {
+            console.error('Tradfri error:', err.message);
+        });
+        tradfri.on('device updated', (device) => {
+            console.log('Device updated:', device.name, device.instanceId);
+            devicesCache.set(String(device.instanceId), device);
+        });
+        tradfri.on('device removed', (deviceId) => {
+            console.log('Device removed:', deviceId);
+            devicesCache.delete(String(deviceId));
+        });
+        
+        const { identity, psk } = await tradfri.authenticate(securityCode);
+        console.log('Authenticated with identity:', identity);
+        
+        // Save credentials
+        fs.mkdirSync(path.dirname(CONFIG_FILE), { recursive: true });
+        let conf = {};
+        try {
+            conf = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+        } catch (e) {}
+        conf[host] = { identity, key: psk };
+        fs.writeFileSync(CONFIG_FILE, JSON.stringify(conf, null, 4));
+        
+        // Reconnect with the new credentials
+        await tradfri.destroy();
+        tradfri = new TradfriClient(host);
+        tradfri.on('error', (err) => {
+            console.error('Tradfri error:', err.message);
+        });
+        tradfri.on('device updated', (device) => {
+            console.log('Device updated:', device.name, device.instanceId);
+            devicesCache.set(String(device.instanceId), device);
+        });
+        tradfri.on('device removed', (deviceId) => {
+            console.log('Device removed:', deviceId);
+            devicesCache.delete(String(deviceId));
+        });
+        
+        const reconnected = await tradfri.connect(identity, psk);
+        if (!reconnected) {
+            console.error('Failed to reconnect with new credentials');
+            connected = false;
+            return { connected: false, error: 'Failed to reconnect' };
+        }
+        
+        connected = true;
+        observeActive = true;
+        tradfri.observeDevices();
+        console.log('Device observation started');
+        
+        return { connected: true, identity, psk };
+    } catch (e) {
+        console.error('Authentication failed:', e.message);
+        connected = false;
+        return { connected: false, error: e.message };
+    }
+}
+
 function getCachedDevices() {
     return Array.from(devicesCache.values()).map(mapDevice);
 }
 
 async function waitForInitialDiscovery(timeout = 10000) {
-    // Wait for the full timeout to allow all devices to be discovered
+    if (devicesCache.size > 0) return;
     return new Promise((resolve) => {
-        setTimeout(resolve, timeout);
+        const checkInterval = setInterval(() => {
+            if (devicesCache.size > 0) {
+                clearInterval(checkInterval);
+                resolve();
+            }
+        }, 500);
+        setTimeout(() => {
+            clearInterval(checkInterval);
+            resolve();
+        }, timeout);
     });
 }
 
@@ -123,9 +202,24 @@ const server = http.createServer(async (req, res) => {
         
         switch (url.pathname) {
             case '/connect': {
-                const ok = await ensureConnected();
-                res.writeHead(200);
-                res.end(JSON.stringify({ connected: ok }));
+                const host = url.searchParams.get('host');
+                const identity = url.searchParams.get('identity');
+                const psk = url.searchParams.get('psk');
+                const securityCode = url.searchParams.get('securityCode');
+                
+                if (securityCode && host) {
+                    const result = await connectWithSecurityCode(host, securityCode);
+                    res.writeHead(200);
+                    res.end(JSON.stringify(result));
+                } else if (host && identity && psk) {
+                    const ok = await ensureConnected(host, identity, psk);
+                    res.writeHead(200);
+                    res.end(JSON.stringify({ connected: ok }));
+                } else {
+                    const ok = await ensureConnected();
+                    res.writeHead(200);
+                    res.end(JSON.stringify({ connected: ok }));
+                }
                 break;
             }
             
