@@ -24,16 +24,17 @@ _LOGGER = logging.getLogger(__name__)
 # default timeout for bridge operations (seconds)
 BRIDGE_OP_TIMEOUT = 5
 
+_executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+
 
 def _with_timeout(fn: Callable, timeout: int, *args, **kwargs):
     """Run `fn` in a thread and raise on timeout or propagate exceptions."""
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-        fut = ex.submit(fn, *args, **kwargs)
-        try:
-            return fut.result(timeout=timeout)
-        except concurrent.futures.TimeoutError:
-            fut.cancel()
-            raise TimeoutError(f"Operation timed out after {timeout}s")
+    fut = _executor.submit(fn, *args, **kwargs)
+    try:
+        return fut.result(timeout=timeout)
+    except concurrent.futures.TimeoutError:
+        fut.cancel()
+        raise TimeoutError(f"Operation timed out after {timeout}s")
 
 
 class BaseService:
@@ -125,7 +126,7 @@ class BaseService:
 
     def Status(self) -> Dict[str, Optional[str]]:
         """Return basic service status including last adapter error (if any)."""
-        return {"ok": None if self.last_error else "true", "last_error": self.last_error}
+        return {"ok": "false" if self.last_error else "true", "last_error": self.last_error}
 
 
 class DBusServiceWrapper:

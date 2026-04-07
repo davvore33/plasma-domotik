@@ -1,1 +1,2 @@
 pytradfri>=7.0
+aiocoap==0.4.12

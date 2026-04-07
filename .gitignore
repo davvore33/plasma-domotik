@@ -49,3 +49,6 @@ htmlcov/
 # Misc
 *.log
 *.sqlite3
+
+# Node.js
+node_modules/

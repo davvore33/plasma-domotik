@@ -17,7 +17,7 @@ def main():
         "type": "light",
         "reachable": True,
         "state": {"on": False, "brightness": 50},
-        "capabilities": ["onoff", "brightness"],
+        "capabilities": ["on_off", "brightness"],
     })
 
     base = BaseService(bridge)
