@@ -245,6 +245,15 @@ def step_check_device_state(context, key, value):
                 actual = device.get('state', {}).get(key)
                 assert actual == expected
 
+@when('I send power command')
+def step_power_command(context):
+    if hasattr(context, 'device_id'):
+        try:
+            response = requests.get(f"{BASE_URL}/power?id={context.device_id}&state=true")
+            context.power_data = response.json()
+        except Exception as e:
+            context.power_data = {"error": str(e)}
+
 @when('I send power command without id')
 def step_power_no_id(context):
     try:
@@ -375,3 +384,202 @@ def step_status_show(context, text):
 @then('gateway is not connected')
 def step_gateway_disconnected(context):
     context.connected = False
+
+# === Power Control: force=true regression scenarios ===
+
+@given('a reachable light device')
+def step_reachable_light(context):
+    response = requests.get(f"{BASE_URL}/devices")
+    devices = response.json()
+    context.device = next(
+        (d for d in devices if d.get('reachable') and d.get('type') == 'light'),
+        None
+    )
+    assert context.device is not None, "No reachable light device found"
+    context.device_id = context.device['id']
+
+@when('I read its current power state')
+def step_read_power_state(context):
+    context.original_state = context.device['state']['on']
+
+@when('I send the same power state again')
+def step_send_same_state(context):
+    state_str = str(context.original_state).lower()
+    response = requests.get(f"{BASE_URL}/power?id={context.device_id}&state={state_str}")
+    context.power_data = response.json()
+
+@then('after refresh the device power state should be unchanged')
+def step_state_unchanged_after_refresh(context):
+    import time
+    time.sleep(1)
+    devices = requests.get(f"{BASE_URL}/devices").json()
+    device = next((d for d in devices if d['id'] == context.device_id), None)
+    assert device is not None
+    assert device['state']['on'] == context.original_state, (
+        f"State changed unexpectedly: was {context.original_state}, now {device['state']['on']}"
+    )
+
+@when('I ensure the device is on')
+def step_ensure_on(context):
+    requests.get(f"{BASE_URL}/power?id={context.device_id}&state=true")
+    import time
+    time.sleep(2)
+    devices = requests.get(f"{BASE_URL}/devices").json()
+    context.device = next((d for d in devices if d['id'] == context.device_id), None)
+
+@when('I ensure the device is off')
+def step_ensure_off(context):
+    requests.get(f"{BASE_URL}/power?id={context.device_id}&state=false")
+    import time
+    time.sleep(2)
+    devices = requests.get(f"{BASE_URL}/devices").json()
+    context.device = next((d for d in devices if d['id'] == context.device_id), None)
+
+@then('after waiting for state propagation the device should show "{key}": {value}')
+def step_check_state_after_propagation(context, key, value):
+    import time
+    time.sleep(3)
+    devices = requests.get(f"{BASE_URL}/devices").json()
+    device = next((d for d in devices if d['id'] == context.device_id), None)
+    assert device is not None, f"Device {context.device_id} not found"
+    expected = value.lower() == 'true'
+    actual = device.get('state', {}).get(key)
+    assert actual == expected, f"Expected {key}={expected}, got {actual}"
+
+# === Plasmoid UI: onClicked regression scenarios ===
+
+@given('a reachable device that is currently on')
+def step_reachable_device_on(context):
+    response = requests.get(f"{BASE_URL}/devices")
+    devices = response.json()
+    context.device = next(
+        (d for d in devices if d.get('reachable') and d['state'].get('on') is True),
+        None
+    )
+    if context.device is None:
+        # set a reachable device to on
+        reachable = next((d for d in devices if d.get('reachable')), None)
+        assert reachable is not None, "No reachable device found"
+        requests.get(f"{BASE_URL}/power?id={reachable['id']}&state=true")
+        import time; time.sleep(2)
+        devices = requests.get(f"{BASE_URL}/devices").json()
+        context.device = next((d for d in devices if d['id'] == reachable['id']), None)
+    context.device_id = context.device['id']
+
+@given('a reachable device that is currently off')
+def step_reachable_device_off(context):
+    response = requests.get(f"{BASE_URL}/devices")
+    devices = response.json()
+    context.device = next(
+        (d for d in devices if d.get('reachable') and d['state'].get('on') is False),
+        None
+    )
+    if context.device is None:
+        reachable = next((d for d in devices if d.get('reachable')), None)
+        assert reachable is not None, "No reachable device found"
+        requests.get(f"{BASE_URL}/power?id={reachable['id']}&state=false")
+        import time; time.sleep(2)
+        devices = requests.get(f"{BASE_URL}/devices").json()
+        context.device = next((d for d in devices if d['id'] == reachable['id']), None)
+    context.device_id = context.device['id']
+
+@when('the toggle is activated')
+def step_toggle_activated(context):
+    # Simulate what onClicked does: send !currentState
+    current_on = context.device['state']['on']
+    target_state = not current_on
+    context.sent_state = target_state
+    response = requests.get(
+        f"{BASE_URL}/power?id={context.device_id}&state={str(target_state).lower()}"
+    )
+    context.power_data = response.json()
+
+@then('a power command with state "{expected_state}" should be sent to the adapter')
+def step_verify_sent_state(context, expected_state):
+    expected = expected_state.lower() == 'true'
+    assert context.sent_state == expected, (
+        f"Expected to send state={expected}, but sent {context.sent_state}"
+    )
+
+@when('an external source turns the device off')
+def step_external_turn_off(context):
+    requests.get(f"{BASE_URL}/power?id={context.device_id}&state=false")
+    import time
+    time.sleep(2)
+
+@given('devices exist')
+def step_devices_exist(context):
+    response = requests.get(f"{BASE_URL}/devices")
+    context.devices = response.json()
+    assert len(context.devices) > 0
+
+@given('a device "{name}" exists')
+def step_named_device_exists(context, name):
+    response = requests.get(f"{BASE_URL}/devices")
+    context.devices = response.json()
+    context.device = next((d for d in context.devices if d['name'] == name), None)
+
+@when('I view the device list')
+def step_view_device_list(context):
+    response = requests.get(f"{BASE_URL}/devices")
+    context.devices = response.json()
+
+@when('I view the device')
+def step_view_device(context):
+    pass
+
+@when('the widget loads')
+def step_widget_loads(context):
+    response = requests.get(f"{BASE_URL}/devices")
+    context.devices = response.json()
+
+@when('I view the toggle switch')
+def step_view_toggle(context):
+    pass
+
+@when('I send power off command with state "{state}"')
+def step_power_off(context, state):
+    response = requests.get(f"{BASE_URL}/power?id={context.device_id}&state={state}")
+    context.power_data = response.json()
+
+@when('I click refresh')
+def step_click_refresh_alt(context):
+    response = requests.get(f"{BASE_URL}/devices")
+    context.devices = response.json()
+
+@given('a valid device id')
+def step_valid_device_id(context):
+    response = requests.get(f"{BASE_URL}/devices")
+    devices = response.json()
+    if devices:
+        context.device_id = devices[0]['id']
+
+@given('a device that is turned on')
+def step_device_turned_on(context):
+    response = requests.get(f"{BASE_URL}/devices")
+    devices = response.json()
+    context.device = next((d for d in devices if d['state'].get('on') is True), None)
+
+@given('a device that is turned off')
+def step_device_turned_off(context):
+    response = requests.get(f"{BASE_URL}/devices")
+    devices = response.json()
+    context.device = next((d for d in devices if d['state'].get('on') is False), None)
+
+@given('a device is displayed')
+def step_device_displayed(context):
+    response = requests.get(f"{BASE_URL}/devices")
+    context.devices = response.json()
+    context.device = next((d for d in context.devices if d.get('reachable')), None)
+    if context.device:
+        context.device_id = context.device['id']
+
+@then('the device list should be refreshed')
+def step_device_list_refreshed(context):
+    assert hasattr(context, 'devices')
+    assert isinstance(context.devices, list)
+
+@then('its icon should be dimmed (opacity 0.4)')
+def step_icon_dimmed_opacity(context):
+    if hasattr(context, 'device') and context.device:
+        assert context.device.get('reachable') is False

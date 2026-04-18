@@ -70,7 +70,9 @@ PlasmoidItem {
     }
 
     function togglePower(deviceId, state) {
+        console.log("[PlasmaDomotik] togglePower id=" + deviceId + " state=" + state)
         httpGet("/power?id=" + deviceId + "&state=" + state, function(err, result) {
+            console.log("[PlasmaDomotik] power result err=" + err + " result=" + JSON.stringify(result))
             if (!err && result && result.success) {
                 refreshDevices()
             }
@@ -155,7 +157,10 @@ PlasmoidItem {
                         Controls.Switch {
                             checked: modelData.state && modelData.state.on
                             enabled: modelData.reachable
-                            onToggled: togglePower(modelData.id, checked)
+                            onClicked: {
+                                console.log("[PlasmaDomotik] Switch clicked id=" + modelData.id + " currentOn=" + modelData.state.on + " checked=" + checked)
+                                togglePower(modelData.id, !modelData.state.on)
+                            }
                         }
                     }
                 }

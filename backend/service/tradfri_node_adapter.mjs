@@ -318,13 +318,21 @@ const server = http.createServer(async (req, res) => {
             
             case '/power': {
                 const deviceId = url.searchParams.get('id');
-                const state = url.searchParams.get('state') === 'true';
-                
+                const stateParam = url.searchParams.get('state');
+
                 if (!deviceId) {
                     res.writeHead(400);
                     res.end(JSON.stringify({ error: 'Missing id parameter' }));
                     return;
                 }
+
+                if (stateParam === null) {
+                    res.writeHead(400);
+                    res.end(JSON.stringify({ error: 'Missing state parameter' }));
+                    return;
+                }
+
+                const state = stateParam === 'true';
                 
                 if (!await ensureConnected()) {
                     res.writeHead(503);
@@ -344,11 +352,9 @@ const server = http.createServer(async (req, res) => {
                 
                 try {
                     if (device.lightList && device.lightList.length > 0) {
-                        device.lightList[0].onOff = state;
-                        await tradfri.operateLight(device, { onOff: state });
+                        await tradfri.operateLight(device, { onOff: state }, true);
                     } else if (device.plugList && device.plugList.length > 0) {
-                        device.plugList[0].onOff = state;
-                        await tradfri.operatePlug(device, { onOff: state });
+                        await tradfri.operatePlug(device, { onOff: state }, true);
                     } else {
                         res.writeHead(400);
                         res.end(JSON.stringify({ error: 'Device type not supported for power control' }));

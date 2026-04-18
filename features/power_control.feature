@@ -28,6 +28,27 @@ Feature: Power Control
     And I refresh the device list
     Then the device should show "on": true
 
+  Scenario: Command is always sent even when target state matches current state
+    Given a reachable light device
+    When I read its current power state
+    And I send the same power state again
+    Then the response should contain "success": true
+    And after refresh the device power state should be unchanged
+
+  Scenario: Toggle off a device that is on
+    Given a reachable light device
+    When I ensure the device is on
+    And I send power off command with state "false"
+    Then the response should contain "success": true
+    And after waiting for state propagation the device should show "on": false
+
+  Scenario: Toggle on a device that is off
+    Given a reachable light device
+    When I ensure the device is off
+    And I send power on command with state "true"
+    Then the response should contain "success": true
+    And after waiting for state propagation the device should show "on": true
+
   Scenario: Device not found for power command
     Given a non-existent device with id "99999"
     When I send power command

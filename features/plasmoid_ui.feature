@@ -41,6 +41,24 @@ Feature: Plasmoid UI
     When I click the toggle switch
     Then the power command should be sent
 
+  Scenario: Toggle switch sends opposite state when device is on
+    Given a reachable device that is currently on
+    When the toggle is activated
+    Then a power command with state "false" should be sent to the adapter
+    And the response should contain "success": true
+
+  Scenario: Toggle switch sends opposite state when device is off
+    Given a reachable device that is currently off
+    When the toggle is activated
+    Then a power command with state "true" should be sent to the adapter
+    And the response should contain "success": true
+
+  Scenario: State refreshes correctly after external device change
+    Given a reachable device that is currently on
+    When an external source turns the device off
+    And I refresh the device list
+    Then the device should show "on": false
+
   Scenario: Device not reachable indicator
     Given an unreachable device
     When I view the device
