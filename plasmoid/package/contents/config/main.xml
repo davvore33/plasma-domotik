@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kcfg xmlns="http://www.kde.org/standards/kcfg/1.0"
+      kcfg-version="1.0">
+    <kcfgfile name=""/>
+    <group name="General">
+        <entry name="gatewayHost" type="String">
+            <label>Gateway IP address</label>
+            <default>192.168.1.116</default>
+        </entry>
+        <entry name="securityCode" type="String">
+            <label>Gateway security code</label>
+            <default></default>
+        </entry>
+    </group>
+</kcfg>

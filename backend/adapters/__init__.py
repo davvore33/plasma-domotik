@@ -1,3 +1,3 @@
-"""Adapters for external systems (databases, APIs)."""
+"""Bridge adapters for external Zigbee gateways and controllers."""
 
 __all__ = []
