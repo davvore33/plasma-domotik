@@ -52,3 +52,7 @@ htmlcov/
 
 # Node.js
 node_modules/
+
+# Config files with secrets
+config.json
+*.local.json

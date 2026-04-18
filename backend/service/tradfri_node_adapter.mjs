@@ -234,6 +234,15 @@ async function waitForInitialDiscovery(timeout = 10000) {
 
 const server = http.createServer(async (req, res) => {
     res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    
+    if (req.method === 'OPTIONS') {
+        res.writeHead(200);
+        res.end();
+        return;
+    }
     
     try {
         const url = new URL(req.url, `http://localhost:${PORT}`);
@@ -323,7 +332,10 @@ const server = http.createServer(async (req, res) => {
                     return;
                 }
                 
-                const device = devicesCache.get(deviceId);
+                // Try string and integer lookup
+                let device = devicesCache.get(deviceId);
+                if (!device) device = devicesCache.get(parseInt(deviceId));
+                if (!device) device = devicesCache.get(String(deviceId));
                 if (!device) {
                     res.writeHead(404);
                     res.end(JSON.stringify({ error: 'Device not found' }));
