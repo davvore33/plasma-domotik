@@ -90,7 +90,7 @@ PlasmoidItem {
 
     fullRepresentation: Item {
         implicitWidth: Kirigami.Units.gridUnit * 18
-        implicitHeight: Kirigami.Units.gridUnit * 22
+        implicitHeight: Kirigami.Units.gridUnit * 16
 
         ColumnLayout {
             anchors.fill: parent
@@ -127,50 +127,54 @@ PlasmoidItem {
                 wrapMode: Text.WordWrap 
             }
 
-            ListView {
+            Controls.ScrollView {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                model: root.devices
                 clip: true
 
-                delegate: Kirigami.Card {
-                    width: ListView.view.width
-                    implicitHeight: Kirigami.Units.gridUnit * 2.5
+                ListView {
+                    width: parent.width
+                    model: root.devices
 
-                    contentItem: RowLayout {
-                        Kirigami.Icon {
-                            source: modelData.type === "light" ? "lightbulb" : 
-                                   modelData.type === "plug" ? "plug" : "preferences-system"
-                            implicitWidth: Kirigami.Units.iconSizes.medium
-                            implicitHeight: Kirigami.Units.iconSizes.medium
-                            opacity: modelData.reachable ? 1 : 0.4
-                        }
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            Controls.Label { text: modelData.name; font.weight: Font.Medium }
-                            Controls.Label {
-                                text: !modelData.reachable ? "Not reachable" :
-                                      (modelData.state && modelData.state.on ? "On" : "Off")
-                                opacity: 0.6
+                    delegate: Kirigami.Card {
+                        width: ListView.view.width
+                        implicitHeight: Kirigami.Units.gridUnit * 2.5
+
+                        contentItem: RowLayout {
+                            Kirigami.Icon {
+                                source: modelData.type === "light" ? "lightbulb" :
+                                       modelData.type === "plug" ? "plug" : "preferences-system"
+                                implicitWidth: Kirigami.Units.iconSizes.medium
+                                implicitHeight: Kirigami.Units.iconSizes.medium
+                                opacity: modelData.reachable ? 1 : 0.4
                             }
-                        }
-                        Controls.Switch {
-                            checked: modelData.state && modelData.state.on
-                            enabled: modelData.reachable
-                            onClicked: {
-                                console.log("[PlasmaDomotik] Switch clicked id=" + modelData.id + " currentOn=" + modelData.state.on + " checked=" + checked)
-                                togglePower(modelData.id, !modelData.state.on)
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                Controls.Label { text: modelData.name; font.weight: Font.Medium }
+                                Controls.Label {
+                                    text: !modelData.reachable ? "Not reachable" :
+                                          (modelData.state && modelData.state.on ? "On" : "Off")
+                                    opacity: 0.6
+                                }
+                            }
+                            Controls.Switch {
+                                checked: modelData.state && modelData.state.on
+                                enabled: modelData.reachable
+                                onClicked: {
+                                    console.log("[PlasmaDomotik] Switch clicked id=" + modelData.id + " currentOn=" + modelData.state.on + " checked=" + checked)
+                                    togglePower(modelData.id, !modelData.state.on)
+                                }
                             }
                         }
                     }
-                }
 
-                Controls.Label {
-                    anchors.centerIn: parent
-                    text: root.loading ? "Loading..." : 
-                          !root.connected ? "Not connected" : "No devices"
-                    opacity: 0.5
-                    visible: root.devices.length === 0
+                    Controls.Label {
+                        anchors.centerIn: parent
+                        text: root.loading ? "Loading..." :
+                              !root.connected ? "Not connected" : "No devices"
+                        opacity: 0.5
+                        visible: root.devices.length === 0
+                    }
                 }
             }
         }
