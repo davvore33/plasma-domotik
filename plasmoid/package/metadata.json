@@ -3,7 +3,7 @@
         "Id": "io.github.davvore33.PlasmaDomotik",
         "Name": "Plasma Domotik",
         "Description": "Control your Zigbee devices via TRÅDFRI gateway",
-        "Icon": "lightbulb",
+        "Icon": "flashlight-on",
         "Category": "Application Launchers",
         "Version": "1.0",
         "Authors": [

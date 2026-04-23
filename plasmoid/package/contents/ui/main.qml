@@ -142,8 +142,8 @@ PlasmoidItem {
 
                         contentItem: RowLayout {
                             Kirigami.Icon {
-                                source: modelData.type === "light" ? "lightbulb" :
-                                       modelData.type === "plug" ? "plug" : "preferences-system"
+                                source: modelData.type === "light" ? "flashlight-on" :
+                                       modelData.type === "plug" ? "utilities-energy-monitor" : "preferences-system"
                                 implicitWidth: Kirigami.Units.iconSizes.medium
                                 implicitHeight: Kirigami.Units.iconSizes.medium
                                 opacity: modelData.reachable ? 1 : 0.4
