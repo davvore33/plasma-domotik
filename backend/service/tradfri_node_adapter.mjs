@@ -41,13 +41,13 @@ function mapDevice(device) {
     
     const capabilities = [];
     if (isLight) {
-        capabilities.push('on_off');
+        capabilities.push('power');
         const light = device.lightList[0];
         if (light.isDimmable) capabilities.push('brightness');
         if (light.colorX !== undefined || light.colorY !== undefined) capabilities.push('color');
         if (light.colorTemperature !== undefined) capabilities.push('color_temp');
     }
-    if (isPlug) capabilities.push('on_off');
+    if (isPlug) capabilities.push('power');
     if (isBlind) capabilities.push('position');
     
     const state = {};
@@ -385,13 +385,15 @@ const server = http.createServer(async (req, res) => {
                     return;
                 }
                 
-                const device = devicesCache.get(deviceId);
+                let device = devicesCache.get(deviceId);
+                if (!device) device = devicesCache.get(parseInt(deviceId));
+                if (!device) device = devicesCache.get(String(deviceId));
                 if (!device) {
                     res.writeHead(404);
                     res.end(JSON.stringify({ error: 'Device not found' }));
                     return;
                 }
-                
+
                 try {
                     const dimmerValue = Math.round(Math.max(0, Math.min(100, value)) * 254 / 100);
                     await tradfri.operateLight(device, { dimmer: dimmerValue });

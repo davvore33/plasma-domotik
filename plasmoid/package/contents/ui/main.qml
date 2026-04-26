@@ -73,10 +73,21 @@ PlasmoidItem {
         console.log("[PlasmaDomotik] togglePower id=" + deviceId + " state=" + state)
         httpGet("/power?id=" + deviceId + "&state=" + state, function(err, result) {
             console.log("[PlasmaDomotik] power result err=" + err + " result=" + JSON.stringify(result))
-            if (!err && result && result.success) {
-                refreshDevices()
-            }
+            if (!err && result && result.success) delayedRefreshTimer.restart()
         })
+    }
+
+    function setBrightness(deviceId, value) {
+        httpGet("/brightness?id=" + deviceId + "&value=" + value, function(err, result) {
+            if (!err && result && result.success) delayedRefreshTimer.restart()
+        })
+    }
+
+    Timer {
+        id: delayedRefreshTimer
+        interval: 1200
+        repeat: false
+        onTriggered: refreshDevices()
     }
 
     Timer {
@@ -138,32 +149,55 @@ PlasmoidItem {
 
                     delegate: Kirigami.Card {
                         width: ListView.view.width
-                        implicitHeight: Kirigami.Units.gridUnit * 2.5
+                        implicitHeight: modelData.capabilities && modelData.capabilities.indexOf("brightness") >= 0
+                            ? Kirigami.Units.gridUnit * 4
+                            : Kirigami.Units.gridUnit * 2.5
 
-                        contentItem: RowLayout {
-                            Kirigami.Icon {
-                                source: modelData.type === "light" ? "flashlight-on" :
-                                       modelData.type === "plug" ? "utilities-energy-monitor" : "preferences-system"
-                                implicitWidth: Kirigami.Units.iconSizes.medium
-                                implicitHeight: Kirigami.Units.iconSizes.medium
-                                opacity: modelData.reachable ? 1 : 0.4
-                            }
-                            ColumnLayout {
+                        contentItem: ColumnLayout {
+                            spacing: Kirigami.Units.smallSpacing
+
+                            RowLayout {
                                 Layout.fillWidth: true
-                                Controls.Label { text: modelData.name; font.weight: Font.Medium }
-                                Controls.Label {
-                                    text: !modelData.reachable ? "Not reachable" :
-                                          (modelData.state && modelData.state.on ? "On" : "Off")
-                                    opacity: 0.6
+
+                                Kirigami.Icon {
+                                    source: modelData.type === "light" ? "flashlight-on" :
+                                           modelData.type === "plug" ? "utilities-energy-monitor" : "preferences-system"
+                                    implicitWidth: Kirigami.Units.iconSizes.medium
+                                    implicitHeight: Kirigami.Units.iconSizes.medium
+                                    opacity: modelData.reachable ? 1 : 0.4
+                                }
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    Controls.Label { text: modelData.name; font.weight: Font.Medium }
+                                    Controls.Label {
+                                        text: !modelData.reachable ? "Not reachable" :
+                                              (modelData.state && modelData.state.on)
+                                                  ? (modelData.capabilities && modelData.capabilities.indexOf("brightness") >= 0
+                                                     ? "On · " + (modelData.state.brightness || 0) + "%"
+                                                     : "On")
+                                                  : "Off"
+                                        opacity: 0.6
+                                    }
+                                }
+                                Controls.Switch {
+                                    checked: modelData.state && modelData.state.on
+                                    enabled: modelData.reachable
+                                    onClicked: {
+                                        console.log("[PlasmaDomotik] Switch clicked id=" + modelData.id + " currentOn=" + modelData.state.on + " checked=" + checked)
+                                        togglePower(modelData.id, !modelData.state.on)
+                                    }
                                 }
                             }
-                            Controls.Switch {
-                                checked: modelData.state && modelData.state.on
-                                enabled: modelData.reachable
-                                onClicked: {
-                                    console.log("[PlasmaDomotik] Switch clicked id=" + modelData.id + " currentOn=" + modelData.state.on + " checked=" + checked)
-                                    togglePower(modelData.id, !modelData.state.on)
-                                }
+
+                            Controls.Slider {
+                                visible: modelData.capabilities && modelData.capabilities.indexOf("brightness") >= 0
+                                         && modelData.reachable
+                                enabled: modelData.state && modelData.state.on
+                                Layout.fillWidth: true
+                                from: 0
+                                to: 100
+                                value: modelData.state ? (modelData.state.brightness || 0) : 0
+                                onMoved: setBrightness(modelData.id, Math.round(value))
                             }
                         }
                     }
