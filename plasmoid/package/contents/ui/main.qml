@@ -77,6 +77,18 @@ PlasmoidItem {
         })
     }
 
+    function setColorTemp(deviceId, value) {
+        httpGet("/color_temp?id=" + deviceId + "&value=" + value, function(err, result) {
+            if (!err && result && result.success) delayedRefreshTimer.restart()
+        })
+    }
+
+    function setColor(deviceId, hue) {
+        httpGet("/color?id=" + deviceId + "&hue=" + hue + "&saturation=100", function(err, result) {
+            if (!err && result && result.success) delayedRefreshTimer.restart()
+        })
+    }
+
     function setBrightness(deviceId, value) {
         httpGet("/brightness?id=" + deviceId + "&value=" + value, function(err, result) {
             if (!err && result && result.success) delayedRefreshTimer.restart()
@@ -149,9 +161,13 @@ PlasmoidItem {
 
                     delegate: Kirigami.Card {
                         width: ListView.view.width
-                        implicitHeight: modelData.capabilities && modelData.capabilities.indexOf("brightness") >= 0
-                            ? Kirigami.Units.gridUnit * 4
-                            : Kirigami.Units.gridUnit * 2.5
+                        implicitHeight: {
+                            const caps = modelData.capabilities || []
+                            const sliders = (caps.indexOf("brightness") >= 0 ? 1 : 0)
+                                          + (caps.indexOf("color_temp") >= 0 ? 1 : 0)
+                                          + (caps.indexOf("color")      >= 0 ? 1 : 0)
+                            return Kirigami.Units.gridUnit * (2.5 + sliders * 1.5)
+                        }
 
                         contentItem: ColumnLayout {
                             spacing: Kirigami.Units.smallSpacing
@@ -198,6 +214,39 @@ PlasmoidItem {
                                 to: 100
                                 value: modelData.state ? (modelData.state.brightness || 0) : 0
                                 onMoved: setBrightness(modelData.id, Math.round(value))
+                            }
+
+                            RowLayout {
+                                visible: modelData.capabilities && modelData.capabilities.indexOf("color_temp") >= 0
+                                         && modelData.reachable
+                                Layout.fillWidth: true
+
+                                Controls.Label { text: "☀"; opacity: 0.6; font.pixelSize: 11 }
+                                Controls.Slider {
+                                    Layout.fillWidth: true
+                                    enabled: modelData.state && modelData.state.on
+                                    from: 0
+                                    to: 100
+                                    value: modelData.state ? (100 - (modelData.state.color_temp || 0)) : 50
+                                    onMoved: setColorTemp(modelData.id, 100 - Math.round(value))
+                                }
+                                Controls.Label { text: "❄"; opacity: 0.6; font.pixelSize: 11 }
+                            }
+
+                            RowLayout {
+                                visible: modelData.capabilities && modelData.capabilities.indexOf("color") >= 0
+                                         && modelData.reachable
+                                Layout.fillWidth: true
+
+                                Controls.Label { text: "🎨"; opacity: 0.6; font.pixelSize: 11 }
+                                Controls.Slider {
+                                    Layout.fillWidth: true
+                                    enabled: modelData.state && modelData.state.on
+                                    from: 0
+                                    to: 360
+                                    value: modelData.state ? (modelData.state.hue || 0) : 0
+                                    onMoved: setColor(modelData.id, Math.round(value))
+                                }
                             }
                         }
                     }

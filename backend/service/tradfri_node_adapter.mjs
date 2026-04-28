@@ -44,8 +44,11 @@ function mapDevice(device) {
         capabilities.push('power');
         const light = device.lightList[0];
         if (light.isDimmable) capabilities.push('brightness');
-        if (light.colorX !== undefined || light.colorY !== undefined) capabilities.push('color');
-        if (light.colorTemperature !== undefined) capabilities.push('color_temp');
+        if (light.hue !== undefined && light.saturation !== undefined) {
+            capabilities.push('color');
+        } else if (light.colorTemperature !== undefined) {
+            capabilities.push('color_temp');
+        }
     }
     if (isPlug) capabilities.push('power');
     if (isBlind) capabilities.push('position');
@@ -56,6 +59,8 @@ function mapDevice(device) {
         state.on = light.onOff;
         if (light.dimmer !== undefined) state.brightness = Math.round(light.dimmer / 254 * 100);
         if (light.color) state.color = light.color;
+        if (light.hue !== undefined) state.hue = light.hue;
+        if (light.saturation !== undefined) state.saturation = light.saturation;
         if (light.colorTemperature !== undefined) state.color_temp = light.colorTemperature;
     }
     if (isPlug) {
@@ -369,6 +374,82 @@ const server = http.createServer(async (req, res) => {
                 break;
             }
             
+            case '/color_temp': {
+                const deviceId = url.searchParams.get('id');
+                const value = parseInt(url.searchParams.get('value'));
+
+                if (!deviceId || isNaN(value)) {
+                    res.writeHead(400);
+                    res.end(JSON.stringify({ error: 'Missing id or value parameter' }));
+                    return;
+                }
+
+                if (!await ensureConnected()) {
+                    res.writeHead(503);
+                    res.end(JSON.stringify({ error: 'Not connected' }));
+                    return;
+                }
+
+                let device = devicesCache.get(deviceId);
+                if (!device) device = devicesCache.get(parseInt(deviceId));
+                if (!device) device = devicesCache.get(String(deviceId));
+                if (!device) {
+                    res.writeHead(404);
+                    res.end(JSON.stringify({ error: 'Device not found' }));
+                    return;
+                }
+
+                try {
+                    await tradfri.operateLight(device, { colorTemperature: Math.max(0, Math.min(100, value)) });
+                    res.writeHead(200);
+                    res.end(JSON.stringify({ success: true }));
+                } catch (e) {
+                    res.writeHead(500);
+                    res.end(JSON.stringify({ success: false, error: e.message }));
+                }
+                break;
+            }
+
+            case '/color': {
+                const deviceId = url.searchParams.get('id');
+                const hue = parseInt(url.searchParams.get('hue'));
+                const saturation = parseInt(url.searchParams.get('saturation') ?? '100');
+
+                if (!deviceId || isNaN(hue)) {
+                    res.writeHead(400);
+                    res.end(JSON.stringify({ error: 'Missing id or hue parameter' }));
+                    return;
+                }
+
+                if (!await ensureConnected()) {
+                    res.writeHead(503);
+                    res.end(JSON.stringify({ error: 'Not connected' }));
+                    return;
+                }
+
+                let device = devicesCache.get(deviceId);
+                if (!device) device = devicesCache.get(parseInt(deviceId));
+                if (!device) device = devicesCache.get(String(deviceId));
+                if (!device) {
+                    res.writeHead(404);
+                    res.end(JSON.stringify({ error: 'Device not found' }));
+                    return;
+                }
+
+                try {
+                    await tradfri.operateLight(device, {
+                        hue: Math.max(0, Math.min(360, hue)),
+                        saturation: Math.max(0, Math.min(100, saturation))
+                    });
+                    res.writeHead(200);
+                    res.end(JSON.stringify({ success: true }));
+                } catch (e) {
+                    res.writeHead(500);
+                    res.end(JSON.stringify({ success: false, error: e.message }));
+                }
+                break;
+            }
+
             case '/brightness': {
                 const deviceId = url.searchParams.get('id');
                 const value = parseInt(url.searchParams.get('value'));

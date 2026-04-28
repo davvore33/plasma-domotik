@@ -64,8 +64,8 @@ Capability strings:
 |--------|---------|---------|----------|
 | `power` | on/off | toggle switch | `GET /power?id=&state=` |
 | `brightness` | dim level 0–100 % (mapped to 0–254 CoAP) | slider | `GET /brightness?id=&value=` |
-| `color_temp` | colour temperature | slider (future) | TBD |
-| `color` | RGB colour | colour picker (future) | TBD |
+| `color_temp` | colour temperature 0–100 (0=cold, 100=warm) | slider warm→cool | `GET /color_temp?id=&value=` |
+| `color` | hue 0–360, saturation 0–100 | hue slider | `GET /color?id=&hue=&saturation=` |
 | `position` | blind position | slider (future) | TBD |
 
 **Acceptance criteria:**
